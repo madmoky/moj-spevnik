@@ -32,30 +32,47 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
-        <button onclick="otvorWebHladanie()" class="bg-stone-700 hover:bg-stone-600 text-sm px-3 py-2 rounded-lg transition">
-          🔍 Hľadať akordy na webe
-        </button>
-        <button onclick="otvorFormular()" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm px-4 py-2 rounded-lg shadow transition">
-          + Pridať pieseň
-        </button>
-      </div>
+      <button onclick="otvorFormular()" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm px-4 py-2 rounded-lg shadow transition">
+        + Pridať pieseň
+      </button>
     </div>
   </header>
 
   <!-- Hlavný obsah -->
   <main class="max-w-5xl w-full mx-auto px-4 py-6 flex-1">
 
-    <!-- POHĽAD 1: Zoznam piesní -->
+    <!-- POHĽAD 1: Zoznam piesní a okamžité vyhľadávanie -->
     <section id="pohlad-zoznam">
-      <div class="mb-5">
+      <div class="mb-4 relative">
         <input
           type="text"
           id="vyhladavanie"
           oninput="filtrujPiesne()"
-          placeholder="Hľadať podľa názvu piesne, interpreta alebo textu..."
-          class="w-full px-4 py-3 rounded-xl border border-stone-300 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+          placeholder="Napíš názov piesne alebo interpreta (hľadá v spevníku aj na webe)..."
+          class="w-full px-4 py-3.5 pr-10 rounded-xl border border-stone-300 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500 text-base"
         />
+        <button id="btn-vymaz-hladanie" onclick="vymazHladanie()" class="hidden absolute right-3 top-3.5 text-stone-400 hover:text-stone-700 font-bold px-2">
+          ✕
+        </button>
+      </div>
+
+      <!-- Lišta priameho vyhľadávania na webe (bez vyskakovacích okien) -->
+      <div id="web-hladanie-lista" class="hidden mb-5 bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2 text-sm">
+          <span class="text-stone-700 font-medium">Nájsť akordy na webe:</span>
+          <a id="link-supermusic" href="#" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 font-semibold px-3 py-1.5 rounded-lg transition">
+            🔍 Supermusic
+          </a>
+          <a id="link-pisnicky" href="#" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 font-semibold px-3 py-1.5 rounded-lg transition">
+            🔍 Písničky-akordy
+          </a>
+          <a id="link-google" href="#" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-amber-100 text-stone-700 border border-stone-300 font-medium px-3 py-1.5 rounded-lg transition">
+            Google
+          </a>
+        </div>
+        <button onclick="otvorFormularSHladanymNazvom()" class="bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold px-3.5 py-1.5 rounded-lg shadow-xs transition">
+          + Pridať túto pieseň do spevníka
+        </button>
       </div>
 
       <div id="zoznam-kariet" class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -129,22 +146,35 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-semibold mb-1">Názov piesne *</label>
-              <input type="text" id="input-nazov" placeholder="napr. Voda čo ma drží nad vodou" class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              <input type="text" id="input-nazov" oninput="aktualizujOdkazyVoFormulare()" placeholder="napr. Voda čo ma drží nad vodou" class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
             </div>
             <div>
               <label class="block text-sm font-semibold mb-1">Interpret</label>
-              <input type="text" id="input-interpret" placeholder="napr. Elán" class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              <input type="text" id="input-interpret" oninput="aktualizujOdkazyVoFormulare()" placeholder="napr. Elán" class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
             </div>
+          </div>
+
+          <!-- Rýchle odkazy priamo pri vypĺňaní formulára -->
+          <div id="formular-web-pomoc" class="hidden bg-stone-50 border border-stone-200 rounded-lg p-2.5 flex flex-wrap items-center gap-2 text-xs">
+            <span class="text-stone-600 font-medium">Otvoriť akordy pre túto pieseň:</span>
+            <a id="form-link-supermusic" href="#" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 font-semibold px-2.5 py-1 rounded">
+              Supermusic ↗
+            </a>
+            <a id="form-link-pisnicky" href="#" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 font-semibold px-2.5 py-1 rounded">
+              Písničky-akordy ↗
+            </a>
+            <a id="form-link-google" href="#" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 px-2.5 py-1 rounded">
+              Google ↗
+            </a>
           </div>
 
           <div>
             <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
               <label class="block text-sm font-semibold">Text a akordy (stačí skopírovať z internetu) *</label>
-              <button type="button" onclick="vlozZoSchranky()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold px-2.5 py-1 rounded">
-                📋 Vložiť zo schránky (Ctrl+V)
+              <button type="button" onclick="vlozZoSchranky()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold px-3 py-1.5 rounded">
+                📋 Vložiť zo schránky
               </button>
             </div>
-            <p class="text-xs text-stone-500 mb-2">Tip: Na webe (napr. Supermusic) označ text aj s akordami nad slovami, skopíruj ho a vlož sem. Žiadne zátvorky netreba.</p>
             <textarea
               id="input-obsah"
               rows="14"
@@ -168,12 +198,8 @@
   </main>
 
   <script>
-    // =========================================================================
-    // 1. NASTAVENIE SUPABASE
-    // =========================================================================
     const SUPABASE_URL = "https://gruzgybwhzpdqohtpczz.supabase.co";
     const SUPABASE_KEY = "sb_publishable_UZHGORsCIRR92z1hyR6oqA_1MAZYafm";
-    // =========================================================================
 
     let db = null;
     let vsetkyPiesne = [];
@@ -183,7 +209,6 @@
     let velkostPisma = 17;
     let scrollInterval = null;
 
-    // Databáza prstokladov pre začiatočníkov [struny E A D G B e], -1 = nehrať, 0 = prázdna struna
     const HMATNIKY = {
       "C":   [-1, 3, 2, 0, 1, 0],
       "Cm":  [-1, 3, 5, 5, 4, 3],
@@ -214,7 +239,6 @@
     const NOTY_KRIZIKY = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "H"];
     const NOTY_BECKA   = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "H"];
 
-    // Štart aplikácie
     window.addEventListener("DOMContentLoaded", async () => {
       db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       await nacitajPiesne();
@@ -238,18 +262,26 @@
       vsetkyPiesne = data || [];
       stav.textContent = `Pripojené • ${vsetkyPiesne.length} piesní v cloude`;
       stav.classList.replace("text-stone-400", "text-emerald-400");
-      vykresliZoznam(vsetkyPiesne);
+      filtrujPiesne();
     }
 
-    function vykresliZoznam(zoznam) {
+    function vykresliZoznam(zoznam, hladanyVyraz = "") {
       const kontajner = document.getElementById("zoznam-kariet");
       if (zoznam.length === 0) {
-        kontajner.innerHTML = `
-          <div class="col-span-full bg-white p-8 rounded-2xl border border-dashed border-stone-300 text-center">
-            <p class="text-lg font-semibold text-stone-700">Zatiaľ tu nemáš žiadne piesne</p>
-            <p class="text-sm text-stone-500 mt-1 mb-4">Klikni na „Hľadať akordy na webe“, skopíruj si obľúbenú pesničku a ulož ju sem.</p>
-            <button onclick="otvorFormular()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ Pridať prvú pieseň</button>
-          </div>`;
+        if (hladanyVyraz) {
+          kontajner.innerHTML = `
+            <div class="col-span-full bg-white p-6 rounded-2xl border border-stone-200 text-center">
+              <p class="text-stone-600">Pieseň <strong>„${unikniHTML(hladanyVyraz)}“</strong> zatiaľ v tvojom spevníku nie je.</p>
+              <p class="text-xs text-stone-400 mt-1">Použi tlačidlá vyššie na jej vyhľadanie na Supermusic alebo Písničky-akordy a vlož ju sem.</p>
+            </div>`;
+        } else {
+          kontajner.innerHTML = `
+            <div class="col-span-full bg-white p-8 rounded-2xl border border-dashed border-stone-300 text-center">
+              <p class="text-lg font-semibold text-stone-700">Zatiaľ tu nemáš žiadne piesne</p>
+              <p class="text-sm text-stone-500 mt-1 mb-4">Napíš názov pesničky do poľa vyššie alebo klikni na tlačidlo nižšie.</p>
+              <button onclick="otvorFormular()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ Pridať prvú pieseň</button>
+            </div>`;
+        }
         return;
       }
 
@@ -265,13 +297,34 @@
     }
 
     function filtrujPiesne() {
-      const q = document.getElementById("vyhladavanie").value.toLowerCase().trim();
+      const raw = document.getElementById("vyhladavanie").value.trim();
+      const q = raw.toLowerCase();
+      const lista = document.getElementById("web-hladanie-lista");
+      const btnVymaz = document.getElementById("btn-vymaz-hladanie");
+
+      if (raw.length > 0) {
+        lista.classList.remove("hidden");
+        btnVymaz.classList.remove("hidden");
+        const encoded = encodeURIComponent(raw);
+        document.getElementById("link-supermusic").href = `https://www.google.com/search?q=${encodeURIComponent("site:supermusic.cz OR site:supermusic.sk " + raw)}`;
+        document.getElementById("link-pisnicky").href = `https://www.google.com/search?q=${encodeURIComponent("site:pisnicky-akordy.cz " + raw)}`;
+        document.getElementById("link-google").href = `https://www.google.com/search?q=${encoded}+akordy`;
+      } else {
+        lista.classList.add("hidden");
+        btnVymaz.classList.add("hidden");
+      }
+
       const filtrovane = vsetkyPiesne.filter(p =>
         (p.nazov && p.nazov.toLowerCase().includes(q)) ||
         (p.interpret && p.interpret.toLowerCase().includes(q)) ||
         (p.obsah && p.obsah.toLowerCase().includes(q))
       );
-      vykresliZoznam(filtrovane);
+      vykresliZoznam(filtrovane, raw);
+    }
+
+    function vymazHladanie() {
+      document.getElementById("vyhladavanie").value = "";
+      filtrujPiesne();
     }
 
     function jeAkord(slovo) {
@@ -428,16 +481,38 @@
       btn.classList.replace("bg-red-600", "bg-amber-600");
     }
 
-    function otvorFormular() {
+    function otvorFormular(predvyplnenyNazov = "") {
       upravovaneId = null;
       document.getElementById("formular-nadpis").textContent = "Pridať novú pieseň";
-      document.getElementById("input-nazov").value = "";
+      document.getElementById("input-nazov").value = predvyplnenyNazov;
       document.getElementById("input-interpret").value = "";
       document.getElementById("input-obsah").value = "";
+      aktualizujOdkazyVoFormulare();
 
       document.getElementById("pohlad-zoznam").classList.add("hidden");
       document.getElementById("pohlad-detail").classList.add("hidden");
       document.getElementById("pohlad-formular").classList.remove("hidden");
+    }
+
+    function otvorFormularSHladanymNazvom() {
+      const hladany = document.getElementById("vyhladavanie").value.trim();
+      otvorFormular(hladany);
+    }
+
+    function aktualizujOdkazyVoFormulare() {
+      const nazov = document.getElementById("input-nazov").value.trim();
+      const interpret = document.getElementById("input-interpret").value.trim();
+      const spolu = `${interpret} ${nazov}`.trim();
+      const pomocBox = document.getElementById("formular-web-pomoc");
+
+      if (spolu.length > 0) {
+        pomocBox.classList.remove("hidden");
+        document.getElementById("form-link-supermusic").href = `https://www.google.com/search?q=${encodeURIComponent("site:supermusic.cz OR site:supermusic.sk " + spolu)}`;
+        document.getElementById("form-link-pisnicky").href = `https://www.google.com/search?q=${encodeURIComponent("site:pisnicky-akordy.cz " + spolu)}`;
+        document.getElementById("form-link-google").href = `https://www.google.com/search?q=${encodeURIComponent(spolu + " akordy")}`;
+      } else {
+        pomocBox.classList.add("hidden");
+      }
     }
 
     function upravAktualnuPiesen() {
@@ -447,6 +522,7 @@
       document.getElementById("input-nazov").value = aktualnaPiesen.nazov;
       document.getElementById("input-interpret").value = aktualnaPiesen.interpret || "";
       document.getElementById("input-obsah").value = aktualnaPiesen.obsah;
+      aktualizujOdkazyVoFormulare();
 
       document.getElementById("pohlad-detail").classList.add("hidden");
       document.getElementById("pohlad-formular").classList.remove("hidden");
@@ -497,6 +573,7 @@
         return alert("Chyba pri ukladaní: " + chyba.message);
       }
 
+      document.getElementById("vyhladavanie").value = "";
       await nacitajPiesne();
       zobrazZoznam();
     }
@@ -517,14 +594,7 @@
       document.getElementById("pohlad-detail").classList.add("hidden");
       document.getElementById("pohlad-formular").classList.add("hidden");
       document.getElementById("pohlad-zoznam").classList.remove("hidden");
-    }
-
-    function otvorWebHladanie() {
-      const hladanyVyraz = prompt("Zadaj názov piesne alebo interpreta, ktorého chceš nájsť:");
-      if (hladanyVyraz && hladanyVyraz.trim()) {
-        const q = encodeURIComponent(hladanyVyraz.trim() + " akordy");
-        window.open(`https://www.google.com/search?q=${q}`, "_blank");
-      }
+      filtrujPiesne();
     }
 
     function unikniHTML(str) {
