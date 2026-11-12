@@ -6,7 +6,6 @@
   <title>Môj gitarový spevník</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     .song-sheet {
       font-family: 'Courier New', Courier, monospace;
@@ -106,17 +105,19 @@
 
           <!-- Ovládací panel pre gitaristu -->
           <div class="flex flex-wrap items-center gap-2 bg-stone-100 p-2 rounded-xl">
-            <span class="text-xs font-semibold text-stone-500 px-1">Tónina:</span>
-            <button onclick="zmenToninu(-1)" class="bg-white hover:bg-stone-200 border border-stone-300 px-2.5 py-1 rounded font-bold text-sm">-1</button>
-            <span id="posun-ukazovatel" class="text-xs font-mono font-bold w-8 text-center">0</span>
-            <button onclick="zmenToninu(1)" class="bg-white hover:bg-stone-200 border border-stone-300 px-2.5 py-1 rounded font-bold text-sm">+1</button>
+            <div id="ovladanie-textu" class="flex flex-wrap items-center gap-2">
+              <span class="text-xs font-semibold text-stone-500 px-1">Tónina:</span>
+              <button onclick="zmenToninu(-1)" class="bg-white hover:bg-stone-200 border border-stone-300 px-2.5 py-1 rounded font-bold text-sm">-1</button>
+              <span id="posun-ukazovatel" class="text-xs font-mono font-bold w-8 text-center">0</span>
+              <button onclick="zmenToninu(1)" class="bg-white hover:bg-stone-200 border border-stone-300 px-2.5 py-1 rounded font-bold text-sm">+1</button>
 
-            <div class="h-5 w-px bg-stone-300 mx-1"></div>
+              <div class="h-5 w-px bg-stone-300 mx-1"></div>
 
-            <button onclick="zmenPismo(-2)" class="bg-white hover:bg-stone-200 border border-stone-300 px-2.5 py-1 rounded text-sm">A-</button>
-            <button onclick="zmenPismo(2)" class="bg-white hover:bg-stone-200 border border-stone-300 px-2.5 py-1 rounded text-sm">A+</button>
+              <button onclick="zmenPismo(-2)" class="bg-white hover:bg-stone-200 border border-stone-300 px-2.5 py-1 rounded text-sm">A-</button>
+              <button onclick="zmenPismo(2)" class="bg-white hover:bg-stone-200 border border-stone-300 px-2.5 py-1 rounded text-sm">A+</button>
 
-            <div class="h-5 w-px bg-stone-300 mx-1"></div>
+              <div class="h-5 w-px bg-stone-300 mx-1"></div>
+            </div>
 
             <button id="btn-scroll" onclick="prepniAutoScroll()" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded text-sm font-medium">
               ▶ Auto-posuv
@@ -125,12 +126,17 @@
         </div>
 
         <!-- Diagramy akordov (hmatníky) -->
-        <div id="sekcia-diagramy" class="mb-6 bg-stone-50 p-4 rounded-xl border border-stone-200">
+        <div id="sekcia-diagramy" class="hidden mb-6 bg-stone-50 p-4 rounded-xl border border-stone-200">
           <p class="text-xs font-bold uppercase tracking-wider text-stone-500 mb-3">Použité akordy v piesni (prstoklad):</p>
           <div id="zoznam-diagramov" class="flex flex-wrap gap-3"></div>
         </div>
 
-        <!-- Samotný text a akordy -->
+        <!-- Obrázok / Screenshot piesne (ak je priložený) -->
+        <div id="sekcia-obrazok" class="hidden mb-6">
+          <img id="detail-obrazok" src="" alt="Noty a akordy piesne" class="w-full max-w-3xl mx-auto rounded-xl border border-stone-200 shadow-xs" />
+        </div>
+
+        <!-- Samotný text a akordy (ak je vyplnený) -->
         <div id="detail-obsah" class="song-sheet text-base md:text-lg overflow-x-auto pb-12"></div>
       </div>
     </section>
@@ -143,7 +149,7 @@
           <button onclick="zobrazZoznam()" class="text-stone-500 hover:text-stone-800 text-sm">✕ Zavrieť</button>
         </div>
 
-        <div class="space-y-4">
+        <div class="space-y-5">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-semibold mb-1">Názov piesne *</label>
@@ -169,36 +175,41 @@
             </a>
           </div>
 
+          <!-- SEKCIA PRE OBRÁZOK / SCREENSHOT -->
+          <div class="bg-stone-50 border-2 border-dashed border-stone-300 rounded-xl p-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p class="text-sm font-semibold text-stone-800">📷 Obrázok alebo screenshot piesne</p>
+                <p class="text-xs text-stone-500">Vyber fotku z mobilu, alebo sprav screenshot a stlač tu <strong>Ctrl + V</strong></p>
+              </div>
+              <div>
+                <input type="file" id="input-obrazok" accept="image/*" class="hidden" onchange="vybratyObrazokZDisku(event)" />
+                <button type="button" onclick="document.getElementById('input-obrazok').click()" class="bg-stone-800 hover:bg-stone-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition">
+                  Vybrať obrázok / odfotiť
+                </button>
+              </div>
+            </div>
+
+            <!-- Náhľad pripraveného obrázka -->
+            <div id="nahlad-obrazka-box" class="hidden mt-4 relative inline-block">
+              <img id="nahlad-obrazka-img" src="" alt="Náhľad" class="max-h-64 rounded-lg border border-stone-300 shadow-xs" />
+              <button type="button" onclick="odstranObrazokZFormulara()" title="Odstrániť obrázok" class="absolute -top-2 -right-2 bg-red-600 hover:bg-red-500 text-white rounded-full w-7 h-7 font-bold text-xs shadow">
+                ✕
+              </button>
+            </div>
+          </div>
+
+          <!-- SEKCIA PRE TEXT A AKORDY -->
           <div>
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <label class="block text-sm font-semibold">Text a akordy *</label>
-              <div class="flex flex-wrap gap-2">
-                <input type="file" id="input-obrazok" accept="image/*" class="hidden" onchange="spracujVybratyObrazok(event)" />
-                <button type="button" onclick="document.getElementById('input-obrazok').click()" class="text-xs bg-stone-800 hover:bg-stone-700 text-white font-semibold px-3 py-1.5 rounded transition">
-                  📷 Načítať z fotky / screenshotu
-                </button>
-                <button type="button" onclick="vlozZoSchranky()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold px-3 py-1.5 rounded transition">
-                  📋 Vložiť text zo schránky
-                </button>
-              </div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <label class="block text-sm font-semibold">Text a akordy (voliteľné, ak vkladáš obrázok)</label>
+              <button type="button" onclick="vlozZoSchranky()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold px-3 py-1 rounded transition">
+                📋 Vložiť text zo schránky
+              </button>
             </div>
-
-            <!-- Stavový riadok pre OCR čítanie obrázka -->
-            <div id="ocr-stav-box" class="hidden mb-2 bg-amber-50 border border-amber-300 rounded-lg p-3">
-              <div class="flex items-center justify-between text-xs font-semibold text-amber-900 mb-1">
-                <span id="ocr-stav-text">Pripravujem čítanie obrázka...</span>
-                <span id="ocr-percenta">0 %</span>
-              </div>
-              <div class="w-full bg-amber-200 rounded-full h-2 overflow-hidden">
-                <div id="ocr-progress-bar" class="bg-amber-600 h-2 transition-all duration-200" style="width: 0%"></div>
-              </div>
-            </div>
-
-            <p class="text-xs text-stone-500 mb-2">Tip: Môžeš skopírovať text z webu, vybrať fotku/screenshot tlačidlom vyššie alebo sem priamo vložiť screenshot zo schránky (<strong>Ctrl+V</strong>).</p>
-
             <textarea
               id="input-obsah"
-              rows="14"
+              rows="10"
               placeholder="    G              D&#10;Keď sa večer zotmieva,&#10;    Em             C&#10;vietor v korunách spieva..."
               class="w-full px-3 py-2 border border-stone-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
             ></textarea>
@@ -229,6 +240,10 @@
     let aktualnyPosun = 0;
     let velkostPisma = 17;
     let scrollInterval = null;
+
+    // Premenné pre prácu s obrázkom vo formulári
+    let vybranySuborObrazka = null;
+    let existujuciObrazokUrl = null;
 
     const HMATNIKY = {
       "C":   [-1, 3, 2, 0, 1, 0],
@@ -266,7 +281,7 @@
     });
 
     // Zachytávanie vloženého screenshotu (Ctrl+V) keď je otvorený formulár
-    window.addEventListener("paste", async (e) => {
+    window.addEventListener("paste", (e) => {
       const formularViditelny = !document.getElementById("pohlad-formular").classList.contains("hidden");
       if (!formularViditelny || !e.clipboardData) return;
 
@@ -276,68 +291,62 @@
           e.preventDefault();
           const subor = polozky[i].getAsFile();
           if (subor) {
-            await precitajTextZObrazka(subor);
+            nastavNahladObrazka(subor);
           }
           break;
         }
       }
     });
 
-    async function spracujVybratyObrazok(event) {
+    function vybratyObrazokZDisku(event) {
       const subor = event.target.files[0];
-      if (!subor) return;
-      await precitajTextZObrazka(subor);
+      if (subor) {
+        nastavNahladObrazka(subor);
+      }
       event.target.value = "";
     }
 
-    async function precitajTextZObrazka(suborObrazka) {
-      const stavBox = document.getElementById("ocr-stav-box");
-      const stavText = document.getElementById("ocr-stav-text");
-      const percentaEl = document.getElementById("ocr-percenta");
-      const progressBar = document.getElementById("ocr-progress-bar");
-      const textarea = document.getElementById("input-obsah");
+    function nastavNahladObrazka(subor) {
+      vybranySuborObrazka = subor;
+      const docasnaUrl = URL.createObjectURL(subor);
+      document.getElementById("nahlad-obrazka-img").src = docasnaUrl;
+      document.getElementById("nahlad-obrazka-box").classList.remove("hidden");
+    }
 
-      stavBox.classList.remove("hidden");
-      stavText.textContent = "Spúšťam rozpoznávanie textu...";
-      percentaEl.textContent = "0 %";
-      progressBar.style.width = "0%";
+    function odstranObrazokZFormulara() {
+      vybranySuborObrazka = null;
+      existujuciObrazokUrl = null;
+      document.getElementById("nahlad-obrazka-img").src = "";
+      document.getElementById("nahlad-obrazka-box").classList.add("hidden");
+    }
 
-      try {
-        const worker = await Tesseract.createWorker(["slk", "ces"], 1, {
-          logger: m => {
-            if (m.status === "recognizing text") {
-              const pct = Math.round(m.progress * 100);
-              stavText.textContent = "Čítam text a akordy z obrázka...";
-              percentaEl.textContent = pct + " %";
-              progressBar.style.width = pct + "%";
-            } else if (m.status === "loading language traineddata") {
-              stavText.textContent = "Sťahujem slovenský/český slovník (len prvýkrát)...";
-            }
+    // Zmenší príliš veľké fotky z mobilu na rozumnú šírku (max 1600px), aby sa bleskovo načítali
+    function optimalizujObrazok(subor) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxSirka = 1600;
+          let sirka = img.width;
+          let vyska = img.height;
+
+          if (sirka > maxSirka) {
+            vyska = Math.round((vyska * maxSirka) / sirka);
+            sirka = maxSirka;
           }
-        });
 
-        await worker.setParameters({
-          preserve_interword_spaces: "1"
-        });
+          const canvas = document.createElement("canvas");
+          canvas.width = sirka;
+          canvas.height = vyska;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, sirka, vyska);
 
-        const { data: { text } } = await worker.recognize(suborObrazka);
-        await worker.terminate();
-
-        const vycistenyText = text.replace(/\n{3,}/g, "\n\n").trim();
-        if (textarea.value.trim()) {
-          textarea.value += "\n\n" + vycistenyText;
-        } else {
-          textarea.value = vycistenyText;
-        }
-
-        stavText.textContent = "Hotovo! Skontroluj prípadné preklepy v texte nižšie.";
-        percentaEl.textContent = "100 %";
-        progressBar.style.width = "100%";
-        setTimeout(() => stavBox.classList.add("hidden"), 4000);
-      } catch (err) {
-        stavBox.classList.add("hidden");
-        alert("Nepodarilo sa prečítať obrázok: " + err.message);
-      }
+          canvas.toBlob((blob) => {
+            resolve(blob || subor);
+          }, "image/jpeg", 0.85);
+        };
+        img.onerror = () => resolve(subor);
+        img.src = URL.createObjectURL(subor);
+      });
     }
 
     async function nacitajPiesne() {
@@ -368,7 +377,7 @@
           kontajner.innerHTML = `
             <div class="col-span-full bg-white p-6 rounded-2xl border border-stone-200 text-center">
               <p class="text-stone-600">Pieseň <strong>„${unikniHTML(hladanyVyraz)}“</strong> zatiaľ v tvojom spevníku nie je.</p>
-              <p class="text-xs text-stone-400 mt-1">Použi tlačidlá vyššie na jej vyhľadanie na Supermusic alebo Písničky-akordy a vlož ju sem.</p>
+              <p class="text-xs text-stone-400 mt-1">Použi tlačidlá vyššie na jej vyhľadanie na Supermusic alebo Písničky-akordy a ulož ju sem.</p>
             </div>`;
         } else {
           kontajner.innerHTML = `
@@ -384,7 +393,10 @@
       kontajner.innerHTML = zoznam.map(p => `
         <div onclick="otvorDetail(${p.id})" class="bg-white p-4 rounded-xl border border-stone-200 hover:border-amber-500 shadow-sm cursor-pointer transition flex justify-between items-center">
           <div>
-            <h3 class="font-bold text-lg text-stone-900">${unikniHTML(p.nazov)}</h3>
+            <div class="flex items-center gap-2">
+              <h3 class="font-bold text-lg text-stone-900">${unikniHTML(p.nazov)}</h3>
+              ${p.obrazok_url ? '<span title="Obsahuje obrázok / screenshot" class="text-xs bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded">📷</span>' : ''}
+            </div>
             <p class="text-sm text-stone-500">${unikniHTML(p.interpret || "Neznámy interpret")}</p>
           </div>
           <span class="text-amber-600 font-bold text-sm">Otvoriť →</span>
@@ -451,6 +463,7 @@
     }
 
     function spracujObsahPiesne(text, poltony) {
+      if (!text) return { html: "", akordy: [] };
       const riadky = text.split("\n");
       const najdeneAkordy = new Set();
 
@@ -527,19 +540,42 @@
       document.getElementById("detail-interpret").textContent = aktualnaPiesen.interpret || "Neznámy interpret";
       document.getElementById("posun-ukazovatel").textContent = (aktualnyPosun > 0 ? "+" : "") + aktualnyPosun;
 
-      const vysledok = spracujObsahPiesne(aktualnaPiesen.obsah, aktualnyPosun);
-      const obsahEl = document.getElementById("detail-obsah");
-      obsahEl.innerHTML = vysledok.html;
-      obsahEl.style.fontSize = velkostPisma + "px";
-
-      const diagramyKontajner = document.getElementById("zoznam-diagramov");
-      const sekciaDiagramy = document.getElementById("sekcia-diagramy");
-      const znameAkordy = vysledok.akordy.filter(a => HMATNIKY[a]);
-
-      if (znameAkordy.length > 0) {
-        sekciaDiagramy.classList.remove("hidden");
-        diagramyKontajner.innerHTML = znameAkordy.map(a => vykresliSVGDiagram(a, HMATNIKY[a])).join("");
+      // Zobrazenie obrázka (ak pieseň má obrázok)
+      const sekciaObrazok = document.getElementById("sekcia-obrazok");
+      const detailObrazok = document.getElementById("detail-obrazok");
+      if (aktualnaPiesen.obrazok_url) {
+        detailObrazok.src = aktualnaPiesen.obrazok_url;
+        sekciaObrazok.classList.remove("hidden");
       } else {
+        detailObrazok.src = "";
+        sekciaObrazok.classList.add("hidden");
+      }
+
+      // Zobrazenie textu a ovládania tóniny (ak pieseň má text)
+      const maText = aktualnaPiesen.obsah && aktualnaPiesen.obsah.trim().length > 0;
+      const ovladanieTextu = document.getElementById("ovladanie-textu");
+      const obsahEl = document.getElementById("detail-obsah");
+      const sekciaDiagramy = document.getElementById("sekcia-diagramy");
+
+      if (maText) {
+        ovladanieTextu.classList.remove("hidden");
+        obsahEl.classList.remove("hidden");
+        const vysledok = spracujObsahPiesne(aktualnaPiesen.obsah, aktualnyPosun);
+        obsahEl.innerHTML = vysledok.html;
+        obsahEl.style.fontSize = velkostPisma + "px";
+
+        const diagramyKontajner = document.getElementById("zoznam-diagramov");
+        const znameAkordy = vysledok.akordy.filter(a => HMATNIKY[a]);
+
+        if (znameAkordy.length > 0) {
+          sekciaDiagramy.classList.remove("hidden");
+          diagramyKontajner.innerHTML = znameAkordy.map(a => vykresliSVGDiagram(a, HMATNIKY[a])).join("");
+        } else {
+          sekciaDiagramy.classList.add("hidden");
+        }
+      } else {
+        ovladanieTextu.classList.add("hidden");
+        obsahEl.classList.add("hidden");
         sekciaDiagramy.classList.add("hidden");
       }
     }
@@ -579,11 +615,11 @@
 
     function otvorFormular(predvyplnenyNazov = "") {
       upravovaneId = null;
+      odstranObrazokZFormulara();
       document.getElementById("formular-nadpis").textContent = "Pridať novú pieseň";
       document.getElementById("input-nazov").value = predvyplnenyNazov;
       document.getElementById("input-interpret").value = "";
       document.getElementById("input-obsah").value = "";
-      document.getElementById("ocr-stav-box").classList.add("hidden");
       aktualizujOdkazyVoFormulare();
 
       document.getElementById("pohlad-zoznam").classList.add("hidden");
@@ -615,11 +651,21 @@
     function upravAktualnuPiesen() {
       if (!aktualnaPiesen) return;
       upravovaneId = aktualnaPiesen.id;
+      vybranySuborObrazka = null;
+      existujuciObrazokUrl = aktualnaPiesen.obrazok_url || null;
+
       document.getElementById("formular-nadpis").textContent = "Upraviť pieseň";
       document.getElementById("input-nazov").value = aktualnaPiesen.nazov;
       document.getElementById("input-interpret").value = aktualnaPiesen.interpret || "";
-      document.getElementById("input-obsah").value = aktualnaPiesen.obsah;
-      document.getElementById("ocr-stav-box").classList.add("hidden");
+      document.getElementById("input-obsah").value = aktualnaPiesen.obsah || "";
+
+      if (existujuciObrazokUrl) {
+        document.getElementById("nahlad-obrazka-img").src = existujuciObrazokUrl;
+        document.getElementById("nahlad-obrazka-box").classList.remove("hidden");
+      } else {
+        odstranObrazokZFormulara();
+      }
+
       aktualizujOdkazyVoFormulare();
 
       document.getElementById("pohlad-detail").classList.add("hidden");
@@ -641,26 +687,60 @@
       const nazov = document.getElementById("input-nazov").value.trim();
       const interpret = document.getElementById("input-interpret").value.trim();
       const obsah = document.getElementById("input-obsah").value;
+      const maObrazok = Boolean(vybranySuborObrazka || existujuciObrazokUrl);
 
-      if (!nazov || !obsah.trim()) {
-        return alert("Zadaj prosím aspoň názov piesne a text s akordami.");
+      if (!nazov) {
+        return alert("Zadaj prosím názov piesne.");
+      }
+      if (!obsah.trim() && !maObrazok) {
+        return alert("Vlož buď obrázok/screenshot piesne, alebo jej text s akordami.");
       }
 
       const btn = document.getElementById("btn-ulozit");
       btn.disabled = true;
       btn.textContent = "Ukladám...";
 
+      let finalObrazokUrl = existujuciObrazokUrl;
+
+      // Ak bol vybraný nový obrázok, optimalizujeme ho a nahráme do Supabase Storage
+      if (vybranySuborObrazka) {
+        btn.textContent = "Nahrávam obrázok...";
+        const optimalizovanyBlob = await optimalizujObrazok(vybranySuborObrazka);
+        const nazovSuboru = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.jpg`;
+
+        const { error: uploadError } = await db.storage
+          .from("obrazky")
+          .upload(nazovSuboru, optimalizovanyBlob, { contentType: "image/jpeg" });
+
+        if (uploadError) {
+          btn.disabled = false;
+          btn.textContent = "💾 Uložiť do cloudu";
+          return alert("Chyba pri nahrávaní obrázka: " + uploadError.message);
+        }
+
+        const { data: urlData } = db.storage.from("obrazky").getPublicUrl(nazovSuboru);
+        finalObrazokUrl = urlData.publicUrl;
+      }
+
+      btn.textContent = "Ukladám pieseň...";
+      const zaznam = {
+        nazov,
+        interpret,
+        obsah: obsah.trim() ? obsah : null,
+        obrazok_url: finalObrazokUrl
+      };
+
       let chyba = null;
       if (upravovaneId) {
         const { error } = await db
           .from("piesne")
-          .update({ nazov, interpret, obsah })
+          .update(zaznam)
           .eq("id", upravovaneId);
         chyba = error;
       } else {
         const { error } = await db
           .from("piesne")
-          .insert([{ nazov, interpret, obsah }]);
+          .insert([zaznam]);
         chyba = error;
       }
 
@@ -679,6 +759,14 @@
     async function zmazAktualnuPiesen() {
       if (!aktualnaPiesen || !db) return;
       if (!confirm(`Naozaj chceš zmazať pieseň „${aktualnaPiesen.nazov}“?`)) return;
+
+      // Ak pieseň mala obrázok v Storage, zmažeme aj ten
+      if (aktualnaPiesen.obrazok_url) {
+        const casti = aktualnaPiesen.obrazok_url.split("/obrazky/");
+        if (casti.length === 2) {
+          await db.storage.from("obrazky").remove([casti[1]]);
+        }
+      }
 
       const { error } = await db.from("piesne").delete().eq("id", aktualnaPiesen.id);
       if (error) return alert("Chyba pri mazaní: " + error.message);
