@@ -12,7 +12,7 @@
       white-space: pre;
       overflow-x: auto;
       line-height: 1.5;
-      }
+    }
     .chord-line {
       color: #d97706;
       font-weight: 700;
@@ -96,7 +96,7 @@
         </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-5 md:p-8">
+      <div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-4 md:p-8">
         <div class="border-b border-stone-200 pb-4 mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 id="detail-nazov" class="text-2xl md:text-3xl font-bold text-stone-900"></h2>
@@ -131,13 +131,13 @@
           <div id="zoznam-diagramov" class="flex flex-wrap gap-3"></div>
         </div>
 
-        <!-- Obrázok / Screenshot piesne (ak je priložený) -->
+        <!-- Obrázok / Screenshot piesne -->
         <div id="sekcia-obrazok" class="hidden mb-6">
           <img id="detail-obrazok" src="" alt="Noty a akordy piesne" class="w-full max-w-3xl mx-auto rounded-xl border border-stone-200 shadow-xs" />
         </div>
 
-        <!-- Samotný text a akordy (ak je vyplnený) -->
-        <div id="detail-obsah" class="song-sheet text-base md:text-lg overflow-x-auto pb-12"></div>
+        <!-- Samotný text a akordy -->
+        <div id="detail-obsah" class="song-sheet text-base md:text-lg pb-12"></div>
       </div>
     </section>
 
@@ -190,7 +190,6 @@
               </div>
             </div>
 
-            <!-- Náhľad pripraveného obrázka -->
             <div id="nahlad-obrazka-box" class="hidden mt-4 relative inline-block">
               <img id="nahlad-obrazka-img" src="" alt="Náhľad" class="max-h-64 rounded-lg border border-stone-300 shadow-xs" />
               <button type="button" onclick="odstranObrazokZFormulara()" title="Odstrániť obrázok" class="absolute -top-2 -right-2 bg-red-600 hover:bg-red-500 text-white rounded-full w-7 h-7 font-bold text-xs shadow">
@@ -238,10 +237,9 @@
     let aktualnaPiesen = null;
     let upravovaneId = null;
     let aktualnyPosun = 0;
-    let velkostPisma = 17;
+    let velkostPisma = 16;
     let scrollInterval = null;
 
-    // Premenné pre prácu s obrázkom vo formulári
     let vybranySuborObrazka = null;
     let existujuciObrazokUrl = null;
 
@@ -280,7 +278,13 @@
       await nacitajPiesne();
     });
 
-    // Zachytávanie vloženého screenshotu (Ctrl+V) keď je otvorený formulár
+    // Pri otočení mobilu na šírku prepočíta zalomenie riadkov
+    window.addEventListener("resize", () => {
+      if (!document.getElementById("pohlad-detail").classList.contains("hidden") && aktualnaPiesen) {
+        prekresliDetail();
+      }
+    });
+
     window.addEventListener("paste", (e) => {
       const formularViditelny = !document.getElementById("pohlad-formular").classList.contains("hidden");
       if (!formularViditelny || !e.clipboardData) return;
@@ -320,7 +324,6 @@
       document.getElementById("nahlad-obrazka-box").classList.add("hidden");
     }
 
-    // Zmenší príliš veľké fotky z mobilu na rozumnú šírku (max 1600px), aby sa bleskovo načítali
     function optimalizujObrazok(subor) {
       return new Promise((resolve) => {
         const img = new Image();
@@ -462,27 +465,119 @@
       });
     }
 
-    function spracujObsahPiesne(text, poltony) {
-      if (!text) return { html: "", akordy: [] };
-      const riadky = text.split("\n");
-      const najdeneAkordy = new Set();
+    // Zalomí dvojicu (riadok akordov + riadok textu) na rovnakom mieste, aby sa nerozpadlo zarovnanie
+    function zalomDvojicu(akordyRiadok, textRiadok, maxZnakov) {
+      const vystup = [];
+      let a = akordyRiadok;
+      let t = textRiadok;
 
-      const htmlRiadky = riadky.map(riadok => {
-        if (jeRiadokSAkordami(riadok)) {
-          const upravenyRiadok = riadok.replace(/\S+/g, token => {
-            if (jeAkord(token)) {
-              const novyToken = posunAkord(token, poltony);
-              const zakladPreDiagram = novyToken.replace(/[()|\[\]]/g, "").split("/")[0];
-              najdeneAkordy.add(zakladPreDiagram);
-              return novyToken;
-            }
-            return token;
-          });
-          return `<div class="chord-line">${unikniHTML(upravenyRiadok)}</div>`;
-        } else {
-          return `<div>${unikniHTML(riadok) || "&nbsp;"}</div>`;
+      while (a.length > maxZnakov || t.length > maxZnakov) {
+        let bodZlomu = -1;
+
+        // 1. Hľadáme medzeru v texte, kde je zároveň medzera aj v riadku s akordami
+        for (let i = Math.min(maxZnakov, Math.max(a.length, t.length) - 1); i > 6; i--) {
+          const medzeraVTexte = (i >= t.length || t[i] === " ");
+          const medzeraVAkordoch = (i >= a.length || a[i] === " ");
+          if (medzeraVTexte && medzeraVAkordoch) {
+            bodZlomu = i;
+            break;
+          }
         }
+
+        // 2. Ak sa nenašla spoločná medzera, hľadáme aspoň medzeru v texte
+        if (bodZlomu === -1) {
+          for (let i = Math.min(maxZnakov, t.length - 1); i > 6; i--) {
+            if (t[i] === " ") {
+              bodZlomu = i;
+              break;
+            }
+          }
+        }
+
+        if (bodZlomu === -1) bodZlomu = maxZnakov;
+
+        vystup.push({
+          akordy: a.slice(0, bodZlomu).trimEnd(),
+          text: t.slice(0, bodZlomu).trimEnd()
+        });
+
+        const preskocMedzeru = (t[bodZlomu] === " " && (bodZlomu >= a.length || a[bodZlomu] === " ")) ? 1 : 0;
+        a = a.slice(bodZlomu + preskocMedzeru);
+        t = t.slice(bodZlomu + preskocMedzeru);
+      }
+
+      if (a.length > 0 || t.length > 0) {
+        vystup.push({ akordy: a.trimEnd(), text: t.trimEnd() });
+      }
+      return vystup;
+    }
+
+    // Zalomí samostatný riadok (len text alebo len akordy) podľa šírky displeja
+    function zalomSamostatnyRiadok(riadok, maxZnakov) {
+      if (riadok.length <= maxZnakov) return [riadok];
+      const kusy = [];
+      let zvysok = riadok;
+
+      while (zvysok.length > maxZnakov) {
+        let bodZlomu = -1;
+        for (let i = maxZnakov; i > 6; i--) {
+          if (zvysok[i] === " ") {
+            bodZlomu = i;
+            break;
+          }
+        }
+        if (bodZlomu === -1) bodZlomu = maxZnakov;
+        kusy.push(zvysok.slice(0, bodZlomu).trimEnd());
+        zvysok = zvysok.slice(bodZlomu + (zvysok[bodZlomu] === " " ? 1 : 0));
+      }
+      if (zvysok.length > 0) kusy.push(zvysok);
+      return kusy;
+    }
+
+    function spracujObsahPiesne(text, poltony, maxZnakov = 80) {
+      if (!text) return { html: "", akordy: [] };
+      const riadky = text.replace(/\r/g, "").split("\n");
+      const najdeneAkordy = new Set();
+      const htmlRiadky = [];
+
+      const transponujRiadok = (r) => r.replace(/\S+/g, token => {
+        if (jeAkord(token)) {
+          const novyToken = posunAkord(token, poltony);
+          const zakladPreDiagram = novyToken.replace(/[()|\[\]]/g, "").split("/")[0];
+          najdeneAkordy.add(zakladPreDiagram);
+          return novyToken;
+        }
+        return token;
       });
+
+      for (let i = 0; i < riadky.length; i++) {
+        const aktualny = riadky[i];
+
+        if (jeRiadokSAkordami(aktualny)) {
+          const transponovaneAkordy = transponujRiadok(aktualny);
+          const dalsi = riadky[i + 1];
+
+          // Ak pod akordami nasleduje text piesne, zalamujeme ich ako nerozlučnú dvojicu
+          if (dalsi !== undefined && dalsi.trim().length > 0 && !jeRiadokSAkordami(dalsi)) {
+            const dvojice = zalomDvojicu(transponovaneAkordy, dalsi, maxZnakov);
+            dvojice.forEach(d => {
+              if (d.akordy) htmlRiadky.push(`<div class="chord-line">${unikniHTML(d.akordy)}</div>`);
+              htmlRiadky.push(`<div>${unikniHTML(d.text) || "&nbsp;"}</div>`);
+            });
+            i++; // preskočíme textový riadok, lebo sme ho už spracovali v dvojici
+          } else {
+            const kusy = zalomSamostatnyRiadok(transponovaneAkordy, maxZnakov);
+            kusy.forEach(k => htmlRiadky.push(`<div class="chord-line">${unikniHTML(k)}</div>`));
+          }
+        } else {
+          if (aktualny.trim().length === 0) {
+            htmlRiadky.push(`<div>&nbsp;</div>`);
+          } else {
+            const kusy = zalomSamostatnyRiadok(aktualny, maxZnakov);
+            kusy.forEach(k => htmlRiadky.push(`<div>${unikniHTML(k)}</div>`));
+          }
+        }
+      }
 
       return { html: htmlRiadky.join(""), akordy: Array.from(najdeneAkordy) };
     }
@@ -527,11 +622,12 @@
 
       aktualnyPosun = 0;
       zastavAutoScroll();
-      prekresliDetail();
 
       document.getElementById("pohlad-zoznam").classList.add("hidden");
       document.getElementById("pohlad-formular").classList.add("hidden");
       document.getElementById("pohlad-detail").classList.remove("hidden");
+
+      prekresliDetail();
       window.scrollTo(0, 0);
     }
 
@@ -540,7 +636,6 @@
       document.getElementById("detail-interpret").textContent = aktualnaPiesen.interpret || "Neznámy interpret";
       document.getElementById("posun-ukazovatel").textContent = (aktualnyPosun > 0 ? "+" : "") + aktualnyPosun;
 
-      // Zobrazenie obrázka (ak pieseň má obrázok)
       const sekciaObrazok = document.getElementById("sekcia-obrazok");
       const detailObrazok = document.getElementById("detail-obrazok");
       if (aktualnaPiesen.obrazok_url) {
@@ -551,7 +646,6 @@
         sekciaObrazok.classList.add("hidden");
       }
 
-      // Zobrazenie textu a ovládania tóniny (ak pieseň má text)
       const maText = aktualnaPiesen.obsah && aktualnaPiesen.obsah.trim().length > 0;
       const ovladanieTextu = document.getElementById("ovladanie-textu");
       const obsahEl = document.getElementById("detail-obsah");
@@ -560,9 +654,14 @@
       if (maText) {
         ovladanieTextu.classList.remove("hidden");
         obsahEl.classList.remove("hidden");
-        const vysledok = spracujObsahPiesne(aktualnaPiesen.obsah, aktualnyPosun);
-        obsahEl.innerHTML = vysledok.html;
         obsahEl.style.fontSize = velkostPisma + "px";
+
+        // Vypočítame, koľko znakov sa presne zmestí na aktuálnu šírku obrazovky
+        const sirkaKontajnera = obsahEl.clientWidth || (window.innerWidth - 64);
+        const maxZnakov = Math.max(22, Math.floor(sirkaKontajnera / (velkostPisma * 0.61)));
+
+        const vysledok = spracujObsahPiesne(aktualnaPiesen.obsah, aktualnyPosun, maxZnakov);
+        obsahEl.innerHTML = vysledok.html;
 
         const diagramyKontajner = document.getElementById("zoznam-diagramov");
         const znameAkordy = vysledok.akordy.filter(a => HMATNIKY[a]);
@@ -587,7 +686,7 @@
 
     function zmenPismo(rozdiel) {
       velkostPisma = Math.max(12, Math.min(28, velkostPisma + rozdiel));
-      document.getElementById("detail-obsah").style.fontSize = velkostPisma + "px";
+      prekresliDetail();
     }
 
     function prepniAutoScroll() {
@@ -702,7 +801,6 @@
 
       let finalObrazokUrl = existujuciObrazokUrl;
 
-      // Ak bol vybraný nový obrázok, optimalizujeme ho a nahráme do Supabase Storage
       if (vybranySuborObrazka) {
         btn.textContent = "Nahrávam obrázok...";
         const optimalizovanyBlob = await optimalizujObrazok(vybranySuborObrazka);
@@ -760,7 +858,6 @@
       if (!aktualnaPiesen || !db) return;
       if (!confirm(`Naozaj chceš zmazať pieseň „${aktualnaPiesen.nazov}“?`)) return;
 
-      // Ak pieseň mala obrázok v Storage, zmažeme aj ten
       if (aktualnaPiesen.obrazok_url) {
         const casti = aktualnaPiesen.obrazok_url.split("/obrazky/");
         if (casti.length === 2) {
