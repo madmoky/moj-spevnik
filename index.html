@@ -46,12 +46,6 @@
   <!-- Hlavný obsah -->
   <main class="max-w-5xl w-full mx-auto px-4 py-6 flex-1">
 
-    <!-- Upozornenie ak chýbajú Supabase kľúče -->
-    <div id="chyba-kluce" class="hidden bg-red-100 border-l-4 border-red-600 text-red-900 p-4 rounded-lg mb-6">
-      <p class="font-bold">Chýba prepojenie na databázu Supabase</p>
-      <p class="text-sm mt-1">Otvor súbor <code>index.html</code> v Poznámkovom bloku, zíď úplne dole a vlož svoje <strong>Project URL</strong> a <strong>API kľúč</strong> zo Supabase.</p>
-    </div>
-
     <!-- POHĽAD 1: Zoznam piesní -->
     <section id="pohlad-zoznam">
       <div class="mb-5">
@@ -222,13 +216,323 @@
 
     // Štart aplikácie
     window.addEventListener("DOMContentLoaded", async () => {
-      if (!SUPABASE_URL.startsWith("https://gruzgybwhzpdqohtpczz.supabase.co/rest/v1/") || SUPABASE_KEY.includes("sb_publishable_UZHGORsCIRR92z1hyR6oqA_1MAZYafm")) {
-        document.getElementById("chyba-kluce").classList.remove("hidden");
-        document.getElementById("stav-pripojenia").textContent = "Nepripojené (chýbajú kľúče)";
-        document.getElementById("zoznam-kariet").innerHTML = "";
-        return;
-      }
-
       db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       await nacitajPiesne();
     });
+
+    async function nacitajPiesne() {
+      const stav = document.getElementById("stav-pripojenia");
+      stav.textContent = "Synchronizujem...";
+
+      const { data, error } = await db
+        .from("piesne")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        stav.textContent = "Chyba pripojenia k databáze";
+        alert("Nepodarilo sa načítať piesne: " + error.message);
+        return;
+      }
+
+      vsetkyPiesne = data || [];
+      stav.textContent = `Pripojené • ${vsetkyPiesne.length} piesní v cloude`;
+      stav.classList.replace("text-stone-400", "text-emerald-400");
+      vykresliZoznam(vsetkyPiesne);
+    }
+
+    function vykresliZoznam(zoznam) {
+      const kontajner = document.getElementById("zoznam-kariet");
+      if (zoznam.length === 0) {
+        kontajner.innerHTML = `
+          <div class="col-span-full bg-white p-8 rounded-2xl border border-dashed border-stone-300 text-center">
+            <p class="text-lg font-semibold text-stone-700">Zatiaľ tu nemáš žiadne piesne</p>
+            <p class="text-sm text-stone-500 mt-1 mb-4">Klikni na „Hľadať akordy na webe“, skopíruj si obľúbenú pesničku a ulož ju sem.</p>
+            <button onclick="otvorFormular()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">+ Pridať prvú pieseň</button>
+          </div>`;
+        return;
+      }
+
+      kontajner.innerHTML = zoznam.map(p => `
+        <div onclick="otvorDetail(${p.id})" class="bg-white p-4 rounded-xl border border-stone-200 hover:border-amber-500 shadow-sm cursor-pointer transition flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-lg text-stone-900">${unikniHTML(p.nazov)}</h3>
+            <p class="text-sm text-stone-500">${unikniHTML(p.interpret || "Neznámy interpret")}</p>
+          </div>
+          <span class="text-amber-600 font-bold text-sm">Otvoriť →</span>
+        </div>
+      `).join("");
+    }
+
+    function filtrujPiesne() {
+      const q = document.getElementById("vyhladavanie").value.toLowerCase().trim();
+      const filtrovane = vsetkyPiesne.filter(p =>
+        (p.nazov && p.nazov.toLowerCase().includes(q)) ||
+        (p.interpret && p.interpret.toLowerCase().includes(q)) ||
+        (p.obsah && p.obsah.toLowerCase().includes(q))
+      );
+      vykresliZoznam(filtrovane);
+    }
+
+    function jeAkord(slovo) {
+      const ciste = slovo.replace(/[()|\[\]]/g, "");
+      if (!ciste) return false;
+      return /^[A-H](#|b)?(m|mi|min|maj|dim|aug|sus|add)?[0-9]*(\/[A-H](#|b)?)?$/.test(ciste);
+    }
+
+    function jeRiadokSAkordami(riadok) {
+      const slova = riadok.trim().split(/\s+/).filter(Boolean);
+      if (slova.length === 0) return false;
+      const pocetAkordov = slova.filter(jeAkord).length;
+      return (pocetAkordov / slova.length) >= 0.6;
+    }
+
+    function posunAkord(akord, poltony) {
+      return akord.replace(/([A-H])(#|b)?/g, (zhoda, zaklad, posuvka) => {
+        let nota = zaklad + (posuvka || "");
+        if (nota === "B") nota = "H";
+        let index = NOTY_KRIZIKY.indexOf(nota);
+        if (index === -1) index = NOTY_BECKA.indexOf(nota);
+        if (index === -1) return zhoda;
+
+        let novyIndex = (index + poltony) % 12;
+        if (novyIndex < 0) novyIndex += 12;
+        return NOTY_KRIZIKY[novyIndex];
+      });
+    }
+
+    function spracujObsahPiesne(text, poltony) {
+      const riadky = text.split("\n");
+      const najdeneAkordy = new Set();
+
+      const htmlRiadky = riadky.map(riadok => {
+        if (jeRiadokSAkordami(riadok)) {
+          const upravenyRiadok = riadok.replace(/\S+/g, token => {
+            if (jeAkord(token)) {
+              const novyToken = posunAkord(token, poltony);
+              const zakladPreDiagram = novyToken.replace(/[()|\[\]]/g, "").split("/")[0];
+              najdeneAkordy.add(zakladPreDiagram);
+              return novyToken;
+            }
+            return token;
+          });
+          return `<div class="chord-line">${unikniHTML(upravenyRiadok)}</div>`;
+        } else {
+          return `<div>${unikniHTML(riadok) || "&nbsp;"}</div>`;
+        }
+      });
+
+      return { html: htmlRiadky.join(""), akordy: Array.from(najdeneAkordy) };
+    }
+
+    function vykresliSVGDiagram(nazovAkordu, prsty) {
+      const sirka = 76, vyska = 92;
+      const startX = 14, startY = 22;
+      const rozostupStrun = 10, rozostupPrazcov = 14;
+
+      let svg = `<svg width="${sirka}" height="${vyska}" class="bg-white rounded-lg border border-stone-200 shadow-xs">`;
+      svg += `<text x="${sirka / 2}" y="14" text-anchor="middle" font-size="12" font-weight="bold" fill="#1c1917">${nazovAkordu}</text>`;
+      svg += `<line x1="${startX}" y1="${startY}" x2="${startX + 5 * rozostupStrun}" y2="${startY}" stroke="#1c1917" stroke-width="2.5"/>`;
+
+      for (let i = 0; i < 6; i++) {
+        const x = startX + i * rozostupStrun;
+        svg += `<line x1="${x}" y1="${startY}" x2="${x}" y2="${startY + 4 * rozostupPrazcov}" stroke="#a8a29e" stroke-width="1"/>`;
+      }
+      for (let p = 1; p <= 4; p++) {
+        const y = startY + p * rozostupPrazcov;
+        svg += `<line x1="${startX}" y1="${y}" x2="${startX + 5 * rozostupStrun}" y2="${y}" stroke="#a8a29e" stroke-width="1"/>`;
+      }
+
+      prsty.forEach((prazec, struna) => {
+        const x = startX + struna * rozostupStrun;
+        if (prazec === -1) {
+          svg += `<text x="${x}" y="${startY - 3}" text-anchor="middle" font-size="8" fill="#dc2626">×</text>`;
+        } else if (prazec === 0) {
+          svg += `<circle cx="${x}" cy="${startY - 5}" r="2.2" fill="none" stroke="#16a34a" stroke-width="1.2"/>`;
+        } else if (prazec <= 4) {
+          const y = startY + (prazec - 0.5) * rozostupPrazcov;
+          svg += `<circle cx="${x}" cy="${y}" r="3.6" fill="#d97706"/>`;
+        }
+      });
+
+      svg += `</svg>`;
+      return svg;
+    }
+
+    function otvorDetail(id) {
+      aktualnaPiesen = vsetkyPiesne.find(p => p.id === id);
+      if (!aktualnaPiesen) return;
+
+      aktualnyPosun = 0;
+      zastavAutoScroll();
+      prekresliDetail();
+
+      document.getElementById("pohlad-zoznam").classList.add("hidden");
+      document.getElementById("pohlad-formular").classList.add("hidden");
+      document.getElementById("pohlad-detail").classList.remove("hidden");
+      window.scrollTo(0, 0);
+    }
+
+    function prekresliDetail() {
+      document.getElementById("detail-nazov").textContent = aktualnaPiesen.nazov;
+      document.getElementById("detail-interpret").textContent = aktualnaPiesen.interpret || "Neznámy interpret";
+      document.getElementById("posun-ukazovatel").textContent = (aktualnyPosun > 0 ? "+" : "") + aktualnyPosun;
+
+      const vysledok = spracujObsahPiesne(aktualnaPiesen.obsah, aktualnyPosun);
+      const obsahEl = document.getElementById("detail-obsah");
+      obsahEl.innerHTML = vysledok.html;
+      obsahEl.style.fontSize = velkostPisma + "px";
+
+      const diagramyKontajner = document.getElementById("zoznam-diagramov");
+      const sekciaDiagramy = document.getElementById("sekcia-diagramy");
+      const znameAkordy = vysledok.akordy.filter(a => HMATNIKY[a]);
+
+      if (znameAkordy.length > 0) {
+        sekciaDiagramy.classList.remove("hidden");
+        diagramyKontajner.innerHTML = znameAkordy.map(a => vykresliSVGDiagram(a, HMATNIKY[a])).join("");
+      } else {
+        sekciaDiagramy.classList.add("hidden");
+      }
+    }
+
+    function zmenToninu(krok) {
+      aktualnyPosun += krok;
+      prekresliDetail();
+    }
+
+    function zmenPismo(rozdiel) {
+      velkostPisma = Math.max(12, Math.min(28, velkostPisma + rozdiel));
+      document.getElementById("detail-obsah").style.fontSize = velkostPisma + "px";
+    }
+
+    function prepniAutoScroll() {
+      const btn = document.getElementById("btn-scroll");
+      if (scrollInterval) {
+        zastavAutoScroll();
+      } else {
+        btn.textContent = "⏸ Zastaviť posuv";
+        btn.classList.replace("bg-amber-600", "bg-red-600");
+        scrollInterval = setInterval(() => {
+          window.scrollBy(0, 1);
+        }, 45);
+      }
+    }
+
+    function zastavAutoScroll() {
+      if (scrollInterval) {
+        clearInterval(scrollInterval);
+        scrollInterval = null;
+      }
+      const btn = document.getElementById("btn-scroll");
+      btn.textContent = "▶ Auto-posuv";
+      btn.classList.replace("bg-red-600", "bg-amber-600");
+    }
+
+    function otvorFormular() {
+      upravovaneId = null;
+      document.getElementById("formular-nadpis").textContent = "Pridať novú pieseň";
+      document.getElementById("input-nazov").value = "";
+      document.getElementById("input-interpret").value = "";
+      document.getElementById("input-obsah").value = "";
+
+      document.getElementById("pohlad-zoznam").classList.add("hidden");
+      document.getElementById("pohlad-detail").classList.add("hidden");
+      document.getElementById("pohlad-formular").classList.remove("hidden");
+    }
+
+    function upravAktualnuPiesen() {
+      if (!aktualnaPiesen) return;
+      upravovaneId = aktualnaPiesen.id;
+      document.getElementById("formular-nadpis").textContent = "Upraviť pieseň";
+      document.getElementById("input-nazov").value = aktualnaPiesen.nazov;
+      document.getElementById("input-interpret").value = aktualnaPiesen.interpret || "";
+      document.getElementById("input-obsah").value = aktualnaPiesen.obsah;
+
+      document.getElementById("pohlad-detail").classList.add("hidden");
+      document.getElementById("pohlad-formular").classList.remove("hidden");
+    }
+
+    async function vlozZoSchranky() {
+      try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById("input-obsah").value = text;
+      } catch (err) {
+        alert("Prehliadač zablokoval automatické vloženie. Klikni do textového poľa a stlač Ctrl+V.");
+      }
+    }
+
+    async function ulozPiesen() {
+      if (!db) return alert("Databáza nie je pripojená.");
+
+      const nazov = document.getElementById("input-nazov").value.trim();
+      const interpret = document.getElementById("input-interpret").value.trim();
+      const obsah = document.getElementById("input-obsah").value;
+
+      if (!nazov || !obsah.trim()) {
+        return alert("Zadaj prosím aspoň názov piesne a text s akordami.");
+      }
+
+      const btn = document.getElementById("btn-ulozit");
+      btn.disabled = true;
+      btn.textContent = "Ukladám...";
+
+      let chyba = null;
+      if (upravovaneId) {
+        const { error } = await db
+          .from("piesne")
+          .update({ nazov, interpret, obsah })
+          .eq("id", upravovaneId);
+        chyba = error;
+      } else {
+        const { error } = await db
+          .from("piesne")
+          .insert([{ nazov, interpret, obsah }]);
+        chyba = error;
+      }
+
+      btn.disabled = false;
+      btn.textContent = "💾 Uložiť do cloudu";
+
+      if (chyba) {
+        return alert("Chyba pri ukladaní: " + chyba.message);
+      }
+
+      await nacitajPiesne();
+      zobrazZoznam();
+    }
+
+    async function zmazAktualnuPiesen() {
+      if (!aktualnaPiesen || !db) return;
+      if (!confirm(`Naozaj chceš zmazať pieseň „${aktualnaPiesen.nazov}“?`)) return;
+
+      const { error } = await db.from("piesne").delete().eq("id", aktualnaPiesen.id);
+      if (error) return alert("Chyba pri mazaní: " + error.message);
+
+      await nacitajPiesne();
+      zobrazZoznam();
+    }
+
+    function zobrazZoznam() {
+      zastavAutoScroll();
+      document.getElementById("pohlad-detail").classList.add("hidden");
+      document.getElementById("pohlad-formular").classList.add("hidden");
+      document.getElementById("pohlad-zoznam").classList.remove("hidden");
+    }
+
+    function otvorWebHladanie() {
+      const hladanyVyraz = prompt("Zadaj názov piesne alebo interpreta, ktorého chceš nájsť:");
+      if (hladanyVyraz && hladanyVyraz.trim()) {
+        const q = encodeURIComponent(hladanyVyraz.trim() + " akordy");
+        window.open(`https://www.google.com/search?q=${q}`, "_blank");
+      }
+    }
+
+    function unikniHTML(str) {
+      if (!str) return "";
+      return str.replace(/[&<>"']/g, m => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+      }[m]));
+    }
+  </script>
+</body>
+</html>
