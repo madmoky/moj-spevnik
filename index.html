@@ -175,10 +175,10 @@
 
   <script>
     // =========================================================================
-    // 1. NASTAVENIE SUPABASE (SEM VLOŽ SVOJE ÚDAJE Z KROKU 2)
+    // 1. NASTAVENIE SUPABASE
     // =========================================================================
-    const SUPABASE_URL = "SEM_VLOZ_PROJECT_URL";
-    const SUPABASE_KEY = "SEM_VLOZ_ANON_PUBLIC_KEY";
+    const SUPABASE_URL = "https://gruzgybwhzpdqohtpczz.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_UZHGORsCIRR92z1hyR6oqA_1MAZYafm";
     // =========================================================================
 
     let db = null;
@@ -224,4 +224,11 @@
     window.addEventListener("DOMContentLoaded", async () => {
       if (!SUPABASE_URL.startsWith("https://gruzgybwhzpdqohtpczz.supabase.co/rest/v1/") || SUPABASE_KEY.includes("sb_publishable_UZHGORsCIRR92z1hyR6oqA_1MAZYafm")) {
         document.getElementById("chyba-kluce").classList.remove("hidden");
-        document.getElementById("stav
+        document.getElementById("stav-pripojenia").textContent = "Nepripojené (chýbajú kľúče)";
+        document.getElementById("zoznam-kariet").innerHTML = "";
+        return;
+      }
+
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      await nacitajPiesne();
+    });
