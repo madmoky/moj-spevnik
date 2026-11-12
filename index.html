@@ -6,6 +6,7 @@
   <title>Môj gitarový spevník</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     .song-sheet {
       font-family: 'Courier New', Courier, monospace;
@@ -56,7 +57,7 @@
         </button>
       </div>
 
-      <!-- Lišta priameho vyhľadávania na webe (bez vyskakovacích okien) -->
+      <!-- Lišta priameho vyhľadávania na webe -->
       <div id="web-hladanie-lista" class="hidden mb-5 bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2 text-sm">
           <span class="text-stone-700 font-medium">Nájsť akordy na webe:</span>
@@ -169,12 +170,32 @@
           </div>
 
           <div>
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
-              <label class="block text-sm font-semibold">Text a akordy (stačí skopírovať z internetu) *</label>
-              <button type="button" onclick="vlozZoSchranky()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold px-3 py-1.5 rounded">
-                📋 Vložiť zo schránky
-              </button>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <label class="block text-sm font-semibold">Text a akordy *</label>
+              <div class="flex flex-wrap gap-2">
+                <input type="file" id="input-obrazok" accept="image/*" class="hidden" onchange="spracujVybratyObrazok(event)" />
+                <button type="button" onclick="document.getElementById('input-obrazok').click()" class="text-xs bg-stone-800 hover:bg-stone-700 text-white font-semibold px-3 py-1.5 rounded transition">
+                  📷 Načítať z fotky / screenshotu
+                </button>
+                <button type="button" onclick="vlozZoSchranky()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold px-3 py-1.5 rounded transition">
+                  📋 Vložiť text zo schránky
+                </button>
+              </div>
             </div>
+
+            <!-- Stavový riadok pre OCR čítanie obrázka -->
+            <div id="ocr-stav-box" class="hidden mb-2 bg-amber-50 border border-amber-300 rounded-lg p-3">
+              <div class="flex items-center justify-between text-xs font-semibold text-amber-900 mb-1">
+                <span id="ocr-stav-text">Pripravujem čítanie obrázka...</span>
+                <span id="ocr-percenta">0 %</span>
+              </div>
+              <div class="w-full bg-amber-200 rounded-full h-2 overflow-hidden">
+                <div id="ocr-progress-bar" class="bg-amber-600 h-2 transition-all duration-200" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <p class="text-xs text-stone-500 mb-2">Tip: Môžeš skopírovať text z webu, vybrať fotku/screenshot tlačidlom vyššie alebo sem priamo vložiť screenshot zo schránky (<strong>Ctrl+V</strong>).</p>
+
             <textarea
               id="input-obsah"
               rows="14"
@@ -243,6 +264,81 @@
       db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       await nacitajPiesne();
     });
+
+    // Zachytávanie vloženého screenshotu (Ctrl+V) keď je otvorený formulár
+    window.addEventListener("paste", async (e) => {
+      const formularViditelny = !document.getElementById("pohlad-formular").classList.contains("hidden");
+      if (!formularViditelny || !e.clipboardData) return;
+
+      const polozky = e.clipboardData.items;
+      for (let i = 0; i < polozky.length; i++) {
+        if (polozky[i].type.indexOf("image") !== -1) {
+          e.preventDefault();
+          const subor = polozky[i].getAsFile();
+          if (subor) {
+            await precitajTextZObrazka(subor);
+          }
+          break;
+        }
+      }
+    });
+
+    async function spracujVybratyObrazok(event) {
+      const subor = event.target.files[0];
+      if (!subor) return;
+      await precitajTextZObrazka(subor);
+      event.target.value = "";
+    }
+
+    async function precitajTextZObrazka(suborObrazka) {
+      const stavBox = document.getElementById("ocr-stav-box");
+      const stavText = document.getElementById("ocr-stav-text");
+      const percentaEl = document.getElementById("ocr-percenta");
+      const progressBar = document.getElementById("ocr-progress-bar");
+      const textarea = document.getElementById("input-obsah");
+
+      stavBox.classList.remove("hidden");
+      stavText.textContent = "Spúšťam rozpoznávanie textu...";
+      percentaEl.textContent = "0 %";
+      progressBar.style.width = "0%";
+
+      try {
+        const worker = await Tesseract.createWorker(["slk", "ces"], 1, {
+          logger: m => {
+            if (m.status === "recognizing text") {
+              const pct = Math.round(m.progress * 100);
+              stavText.textContent = "Čítam text a akordy z obrázka...";
+              percentaEl.textContent = pct + " %";
+              progressBar.style.width = pct + "%";
+            } else if (m.status === "loading language traineddata") {
+              stavText.textContent = "Sťahujem slovenský/český slovník (len prvýkrát)...";
+            }
+          }
+        });
+
+        await worker.setParameters({
+          preserve_interword_spaces: "1"
+        });
+
+        const { data: { text } } = await worker.recognize(suborObrazka);
+        await worker.terminate();
+
+        const vycistenyText = text.replace(/\n{3,}/g, "\n\n").trim();
+        if (textarea.value.trim()) {
+          textarea.value += "\n\n" + vycistenyText;
+        } else {
+          textarea.value = vycistenyText;
+        }
+
+        stavText.textContent = "Hotovo! Skontroluj prípadné preklepy v texte nižšie.";
+        percentaEl.textContent = "100 %";
+        progressBar.style.width = "100%";
+        setTimeout(() => stavBox.classList.add("hidden"), 4000);
+      } catch (err) {
+        stavBox.classList.add("hidden");
+        alert("Nepodarilo sa prečítať obrázok: " + err.message);
+      }
+    }
 
     async function nacitajPiesne() {
       const stav = document.getElementById("stav-pripojenia");
@@ -487,6 +583,7 @@
       document.getElementById("input-nazov").value = predvyplnenyNazov;
       document.getElementById("input-interpret").value = "";
       document.getElementById("input-obsah").value = "";
+      document.getElementById("ocr-stav-box").classList.add("hidden");
       aktualizujOdkazyVoFormulare();
 
       document.getElementById("pohlad-zoznam").classList.add("hidden");
@@ -522,6 +619,7 @@
       document.getElementById("input-nazov").value = aktualnaPiesen.nazov;
       document.getElementById("input-interpret").value = aktualnaPiesen.interpret || "";
       document.getElementById("input-obsah").value = aktualnaPiesen.obsah;
+      document.getElementById("ocr-stav-box").classList.add("hidden");
       aktualizujOdkazyVoFormulare();
 
       document.getElementById("pohlad-detail").classList.add("hidden");
